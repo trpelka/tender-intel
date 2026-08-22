@@ -35,6 +35,11 @@ FIELDS = [
     "buyer-country",
     "classification-cpv",
     "deadline-receipt-request",
+    "deadline",
+    "deadline-date-part",
+    "deadline-date-lot",
+    "deadline-receipt-tender-date-lot",
+    "deadline-receipt-expressions-date-lot",
     "estimated-value-proc",
     "estimated-value-cur-proc",
     "notice-type",
@@ -168,6 +173,11 @@ def build_query(
 
     parts.append(
         f"publication-date>={date_from}"
+    )
+
+    # Exclude contract award/result notices: they are not live opportunities.
+    parts.append(
+        "notice-type!=can-standard"
     )
 
     if min_value not in (None, ""):
@@ -452,28 +462,61 @@ def _numeric(value):
 
 def _description(raw):
     """
-    Extract the best available description field.
+    Extract the best available procurement description from TED.
 
-    TED may return either short-description or description,
-    depending on notice type/API response.
+    TED may provide:
+    - description-proc
+    - short-description
+    - description
+    - notice-description
+    - object-description
+
+    Multilingual TED fields are handled by preferring English,
+    then Polish, then the first available language.
     """
 
+    value = raw.get("description-proc")
+
+    if isinstance(value, dict):
+        for lang in ("eng", "pol"):
+            text = value.get(lang)
+            if text:
+                return str(text).strip()
+
+        for text in value.values():
+            if text:
+                return str(text).strip()
+
+    elif value:
+        text = _first(value)
+        if text:
+            return str(text).strip()
+
     for key in (
+        "description-proc",
         "short-description",
         "description",
         "notice-description",
         "object-description",
     ):
+        value = raw.get(key)
 
-        value = _first(
-            raw.get(key)
-        )
+        if isinstance(value, dict):
+            for lang in ("eng", "pol"):
+                text = value.get(lang)
+                if text:
+                    return str(text).strip()
 
-        if value:
-            return value
+            for text in value.values():
+                if text:
+                    return str(text).strip()
+
+        else:
+            text = _first(value)
+            if text:
+                return str(text).strip()
 
     return ""
-
 
 def normalize(raw):
     """
@@ -522,12 +565,18 @@ def normalize(raw):
         )
     )
 
-    deadline = _scalar(
-        raw.get(
-            "deadline-receipt-request",
-            "",
-        )
-    )
+    deadline = ""
+    for deadline_key in (
+        "deadline-receipt-request",
+        "deadline",
+        "deadline-date-part",
+        "deadline-date-lot",
+        "deadline-receipt-tender-date-lot",
+        "deadline-receipt-expressions-date-lot",
+    ):
+        deadline = _scalar(raw.get(deadline_key, ""))
+        if deadline:
+            break
 
     estimated_value = _numeric(
         raw.get(

@@ -21,7 +21,7 @@ def _block(n, idx):
             padding:14px;border-radius:4px;">
   <span style="background:{c};color:white;font-size:11px;padding:2px 7px;
                border-radius:3px;font-weight:bold;">{imp}</span>
-  <span style="color:#999;font-size:12px;float:right;">#{idx} · {n.get('source','')} · {n.get('buyer_country','')}</span>
+  <span style="color:#999;font-size:12px;float:right;">#{idx} · {n.get('buyer_country','')}</span>
   <h3 style="margin:10px 0 6px;font-size:15px;">
     <a href="{n.get('url','#')}" style="color:#2c3e50;text-decoration:none;">
       {n.get('title','No title')[:120]}

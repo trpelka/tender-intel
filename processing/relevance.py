@@ -491,6 +491,31 @@ def impact_label(score_value):
     return "LOW"
 
 
+def _deadline_expired(value):
+    """Return True only when a notice has a parseable past deadline."""
+    if value in (None, ""):
+        return False
+
+    from datetime import datetime, timezone
+
+    text = str(value).strip()
+
+    try:
+        # TED may use either Z or an explicit UTC offset.
+        if text.endswith("Z"):
+            text = text[:-1] + "+00:00"
+
+        dt = datetime.fromisoformat(text)
+
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+
+        return dt < datetime.now(timezone.utc)
+
+    except (TypeError, ValueError):
+        return False
+
+
 def filter_and_score(
     notices,
     profile
@@ -512,7 +537,16 @@ def filter_and_score(
 
     out = []
 
+    expired_count = 0
+
     for n in notices:
+
+        # A tender whose submission deadline has already passed is
+        # not an actionable opportunity. Missing/unparseable deadlines
+        # are retained rather than being falsely classified as expired.
+        if _deadline_expired(n.get("deadline")):
+            expired_count += 1
+            continue
 
         score_value, reasons = score(
             n,
