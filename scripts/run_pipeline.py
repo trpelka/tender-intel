@@ -137,8 +137,9 @@ def run(profile, client_id, args):
             try:
                 nid = insert_notice(n)
 
-                # Already in DB — don't create duplicate intelligence.
-                if nid is None:
+                # Don't create duplicate intelligence for this client.
+                from database.db import intelligence_exists
+                if intelligence_exists(nid, client_id):
                     continue
 
                 insert_intelligence({

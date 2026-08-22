@@ -155,6 +155,16 @@ def insert_notice(n):
     conn.close()
     return new_id
 
+def intelligence_exists(notice_id, client_id):
+    conn = get_conn()
+    row = conn.execute(
+        "SELECT id FROM intelligence WHERE notice_id=? AND client_id=?",
+        (int(notice_id), int(client_id))
+    ).fetchone()
+    conn.close()
+    return row is not None
+
+
 def insert_intelligence(i):
     conn = get_conn()
 
