@@ -1,64 +1,140 @@
 """
-Gemini Flash — free tier, 1500 req/day.
-Key: https://aistudio.google.com/app/apikey
+Gemini Flash summarization.
+One API request per tender: English + Polish.
 """
-import httpx, os, time, logging
+
+import httpx
+import os
+import logging
 
 logger = logging.getLogger(__name__)
+
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-GEMINI_URL = ("https://generativelanguage.googleapis.com/v1beta/models/"
-              "gemini-2.0-flash:generateContent")
-RPM_DELAY = 6.5
+
+GEMINI_URL = (
+    "https://generativelanguage.googleapis.com/v1/"
+    "models/gemini-3.6-flash:generateContent"
+)
+
 
 def _call(prompt):
     if not GEMINI_API_KEY:
+        logger.error("GEMINI_API_KEY is not set")
         return None
-    payload = {"contents": [{"parts": [{"text": prompt}]}],
-               "generationConfig": {"temperature": 0.2, "maxOutputTokens": 400}}
-    with httpx.Client(timeout=30) as client:
-        r = client.post(f"{GEMINI_URL}?key={GEMINI_API_KEY}", json=payload,
-                        headers={"Content-Type": "application/json"})
-        r.raise_for_status()
+
+    payload = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {
+            "temperature": 0.2,
+            "maxOutputTokens": 500
+        }
+    }
+
     try:
-        return r.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
-    except (KeyError, IndexError):
-        return ""
+        with httpx.Client(timeout=60) as client:
+            r = client.post(
+                f"{GEMINI_URL}?key={GEMINI_API_KEY}",
+                json=payload,
+                headers={"Content-Type": "application/json"},
+            )
+
+        if r.status_code == 429:
+            print("    Gemini: 429 rate limit — skipping request")
+            return None
+
+        if r.status_code == 503:
+            print("    Gemini: 503 unavailable — skipping request")
+            return None
+
+        r.raise_for_status()
+
+        data = r.json()
+        return data["candidates"][0]["content"]["parts"][0]["text"].strip()
+
+    except (httpx.HTTPError, KeyError, IndexError, TypeError) as e:
+        logger.error(f"Gemini error: {e}")
+        return None
+
 
 def summarize_notice(n):
-    title = n.get("title",""); desc = n.get("description","")
-    country = n.get("buyer_country",""); deadline = n.get("deadline","")
-    value = n.get("estimated_value"); currency = n.get("currency","EUR")
+    title = n.get("title", "")
+    desc = n.get("description", "")
+    country = n.get("buyer_country", "")
+    deadline = n.get("deadline", "")
+    value = n.get("estimated_value")
+    currency = n.get("currency", "EUR")
+
     val_str = f"{value:,.0f} {currency}" if value else "not specified"
     cpvs = n.get("cpv_codes", [])
 
-    en = f"""Summarize this EU public tender in 3 sentences for a business reader.
-1: What is procured and by whom (country: {country}).
-2: Key requirements or scope.
-3: Deadline ({deadline}), value ({val_str}).
-Title: {title}
-Description: {desc[:800]}
-CPV: {', '.join(str(c) for c in cpvs)}
-English only. No preamble."""
+    prompt = f"""Analyze this EU public tender.
 
-    pl = f"""Streść to zamówienie publiczne w 2 zdaniach po polsku.
-1: Co jest przedmiotem i kto ogłasza (kraj: {country}).
-2: Termin ({deadline}), wartość ({val_str}).
-Tytuł: {title}
-Opis: {desc[:400]}
-Tylko po polsku. Bez wstępu."""
+Return EXACTLY:
+
+EN:
+[3 concise sentences in English]
+
+PL:
+[2 concise sentences in Polish]
+
+EN:
+1. What is being procured and by whom.
+2. Key requirements or scope.
+3. Deadline, estimated value and currency.
+
+PL:
+1. Przedmiot zamówienia i zamawiający.
+2. Termin i wartość.
+
+No preamble.
+
+Country: {country}
+Deadline: {deadline}
+Value: {val_str}
+
+Title:
+{title}
+
+Description:
+{desc[:1000]}
+
+CPV:
+{', '.join(str(c) for c in cpvs)}
+"""
+
+    result = _call(prompt)
+
+    if not result:
+        n["summary_en"] = title
+        n["summary_pl"] = title
+        return n
 
     try:
-        n["summary_en"] = _call(en); time.sleep(RPM_DELAY)
-        n["summary_pl"] = _call(pl); time.sleep(RPM_DELAY)
+        if "PL:" in result:
+            en_part, pl_part = result.split("PL:", 1)
+            n["summary_en"] = en_part.replace("EN:", "", 1).strip() or title
+            n["summary_pl"] = pl_part.strip() or title
+        else:
+            n["summary_en"] = result
+            n["summary_pl"] = title
     except Exception as e:
-        logger.error(f"Gemini error: {e}")
-        n["summary_en"] = title; n["summary_pl"] = title
+        logger.error(f"Gemini response parsing error: {e}")
+        n["summary_en"] = result
+        n["summary_pl"] = title
+
     return n
+
 
 def summarize_batch(notices, max_items=40):
     notices = notices[:max_items]
+
     print(f"Summarizing {len(notices)} notices...")
+
     for i, n in enumerate(notices):
-        print(f"  {i+1}/{len(notices)}: {n.get('notice_id','')[:40]}")
+        print(
+            f"  {i + 1}/{len(notices)}: "
+            f"{n.get('notice_id', '')[:40]}"
+        )
         summarize_notice(n)
+
     return notices
