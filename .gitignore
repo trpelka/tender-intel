@@ -1,3 +1,6 @@
 tender_intel.db
 output/
 .env
+__pycache__/
+*.pyc
+.venv/
