@@ -17,7 +17,6 @@ This collector:
 
 from datetime import datetime, timedelta, UTC
 import logging
-from typing import Any
 
 import httpx
 

@@ -86,7 +86,6 @@ HIGH_VALUE_KEYWORDS = {
     "centrum operacji bezpieczeństwa soc",
     "zapora sieciowa",
     "zapory sieciowe",
-    "firewall",
     "firewalle",
     "firewallów",
 
@@ -120,7 +119,6 @@ HIGH_VALUE_KEYWORDS = {
     "bezpečnostní operace",
     "centrum bezpečnostních operací",
     "bezpečnostní operační centrum",
-    "firewall",
     "firewally",
     "firewallů",
     "ochrana sítě",

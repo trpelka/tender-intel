@@ -11,7 +11,6 @@ Usage:
 """
 
 import sys
-import os
 import json
 import argparse
 from datetime import datetime, timedelta, UTC

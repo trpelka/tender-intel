@@ -6,8 +6,6 @@ One API request per tender: English + Polish.
 import httpx
 import os
 import logging
-import time
-import time
 
 logger = logging.getLogger(__name__)
 

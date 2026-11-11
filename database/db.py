@@ -1,4 +1,6 @@
-import sqlite3, os, json
+import json
+import os
+import sqlite3
 
 DB_PATH = os.getenv("DATABASE_URL", "tender_intel.db")
 

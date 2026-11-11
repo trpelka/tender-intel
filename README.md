@@ -1,5 +1,7 @@
 # Tender Intelligence
 
+[![CI](https://github.com/trpelka/tender-intel/actions/workflows/ci.yml/badge.svg)](https://github.com/trpelka/tender-intel/actions/workflows/ci.yml)
+
 Automated procurement intelligence for IT, cybersecurity and technology tenders across European public procurement data.
 
 ```text
@@ -91,20 +93,50 @@ A profile is a JSON file describing what a client cares about. `--profile` auto-
 | `countries` | Buyer country codes |
 | `keywords` | Case-insensitive terms matched against title and description |
 | `days_back` | Publication lookback window |
-| `min_value` | Notices below this estimated value are discarded |
-| `min_relevance_score` | Minimum score to appear in the digest (default 3) |
+| `min_value` | Notices below this estimated value are discarded; notices with no value are kept |
+| `min_relevance_score` | Minimum score to appear in the digest (default `5`, i.e. `MEDIUM`) |
 
 ## How relevance is scored
 
+The table below is the exact behaviour of `processing/relevance.py`; the tests in
+`tests/test_relevance.py` pin every row.
+
 | Signal | Points |
 | --- | --- |
-| Exact CPV match | +5 |
-| Related / prefix CPV match | +3 |
-| Each keyword match | +2 |
-| Buyer country in profile | +1 |
-| Below `min_value` | score forced to 0 |
+| Exact CPV match | **+8** (only the strongest CPV match counts) |
+| Prefix CPV match (either direction) | **+2** |
+| First keyword in the title | **+4** |
+| Each further keyword in the title | **+2**, capped at **+8** for title keywords |
+| High-value security keyword in the title | **+6** in total, regardless of how many match |
+| Keyword found only in the description | **+1** each, capped at **+2** |
+| Buyer country in profile | **+1** |
+| Estimated value below `min_value` | score forced to **0** |
 
-Impact labels: `HIGH` at 6+, `MEDIUM` at 3+, otherwise `LOW`. The rules are in [`processing/relevance.py`](./processing/relevance.py), so a score can always be explained.
+Impact labels: `HIGH` at **10+**, `MEDIUM` at **5+**, otherwise `LOW`. The
+sample profile sets `min_relevance_score` to `10`, so only `HIGH` tenders reach
+the digest.
+
+Two details that are easy to misread:
+
+- A keyword listed in `HIGH_VALUE_KEYWORDS` only earns the +6 when it is also
+  present in the client profile's `keywords`. The list is a bonus classifier,
+  not a second detector.
+- Short acronyms (`SOC`, `SIEM`, `EDR`, `XDR`, `API`) require token boundaries,
+  so `SOC` does not match "social" and `SIEM` does not match "Siemens". Longer
+  Polish/Czech terms use substring matching on purpose, because inflection
+  changes the ending.
+
+## Tests
+
+```bash
+pip install -r requirements-dev.txt
+pytest
+ruff check .
+```
+
+The suite covers CPV scoring, keyword caps, high-value bonuses, the minimum
+value exclusion, deadline filtering, deduplication, and HTML escaping of
+untrusted tender titles and URLs.
 
 ## Output
 
@@ -131,6 +163,7 @@ database/         SQLite schema and queries
 reports/          HTML digest generation and email delivery
 profiles/         example client profile
 scripts/          run_pipeline.py, add_client.py
+tests/            pytest suite for scoring, deduplication and digest rendering
 output/           generated digests (created at runtime)
 requirements.txt
 .env.example
@@ -144,8 +177,8 @@ setup.sh          optional bootstrap for an empty sandbox
 - The BZP RSS feed does not expose CPV codes, so Polish below-threshold notices are matched mainly by keywords.
 - Gemini summaries are rate-limited (a delay between requests) and capped per run.
 - Email delivery requires valid SMTP credentials.
-- There is no automated test suite yet; use `--dry-run` and inspect a generated digest after changes.
 - TED and BZP are external services: schema or feed changes can break collection until the adapters are updated.
+- The digest is decision support, not legal advice. Always open the source notice before acting.
 
 ## Status
 
