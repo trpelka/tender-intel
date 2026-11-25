@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from database.models import Intelligence
 from database.repository import Repository
+from pg import pg_uri
 
 
 def sample(notice_id="N-1", hash_key="h-1", value=120000):
@@ -52,7 +53,7 @@ def test_postgresql_repository_roundtrip():
     pgserver = pytest.importorskip("pgserver")
     import tempfile
     server = pgserver.get_server(tempfile.mkdtemp(prefix="tender-repo-pg-"))
-    repo = Repository(server.get_uri())
+    repo = Repository(pg_uri(server))
     repo.create_schema()
     client_id = repo.insert_client("PG", "pg@example.com", {})
     assert repo.store_run([sample(hash_key="pg-1")], client_id) == 1
