@@ -3,6 +3,7 @@ import os
 import sqlite3
 
 DB_PATH = os.getenv("DATABASE_URL", "tender_intel.db")
+SCHEMA_VERSION = 2
 
 
 def scalar(value):
@@ -31,6 +32,9 @@ def get_conn():
     conn = sqlite3.connect(DB_PATH, timeout=30)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
+    # The schema declares FKs, but SQLite ignores them unless each connection
+    # enables enforcement. Without this, orphan intelligence rows are possible.
+    conn.execute("PRAGMA foreign_keys=ON")
     return conn
 
 
@@ -95,9 +99,18 @@ def init_db():
         CREATE INDEX IF NOT EXISTS idx_intel_client
             ON intelligence(client_id);
     """)
+    # Migrations are explicit and versioned. CREATE TABLE IF NOT EXISTS creates
+    # a fresh database; it does not change an existing one that is already live.
+    current = conn.execute("PRAGMA user_version").fetchone()[0]
+    if current < 2:
+        conn.executescript("""
+            CREATE INDEX IF NOT EXISTS idx_intel_notice
+                ON intelligence(notice_id);
+        """)
+        conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
     conn.commit()
     conn.close()
-    print(f"DB ready: {DB_PATH}")
+    print(f"DB ready: {DB_PATH} (schema {current} -> {SCHEMA_VERSION})")
 
 
 def notice_exists(h):
@@ -145,7 +158,7 @@ def insert_notice(n):
         scalar(n.get("buyer_country", "")),
         scalar(n.get("publication_date", "")),
         scalar(n.get("deadline", "")),
-        scalar(n.get("estimated_value")),
+        numeric(n.get("estimated_value")),
         scalar(n.get("currency", "")),
         scalar(n.get("url", "")),
         scalar(n.get("notice_type", "")),

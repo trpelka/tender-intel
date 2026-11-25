@@ -37,12 +37,12 @@ def test_same_procurement_from_two_sources_is_still_collapsed():
     assert len(deduplicate(notices)) == 1
 
 
-def test_same_procurement_is_deduplicated_even_with_new_ids():
+def test_near_identical_values_are_no_longer_collapsed():
     notices = [
         notice(notice_id="a", estimated_value=120000),
         notice(notice_id="b", estimated_value=120040),
     ]
-    assert len(deduplicate(notices)) == 1
+    assert len(deduplicate(notices)) == 2
 
 
 def test_different_value_keeps_both_rows():
@@ -65,8 +65,9 @@ def test_hash_is_stable_for_the_same_input():
     assert make_hash(notice(notice_id="123")) == make_hash(notice(notice_id="123", title="Other title"))
 
 
-def test_procurement_key_rounds_values_to_hundreds():
-    assert procurement_key(notice(estimated_value=120049)) == procurement_key(notice(estimated_value=120000))
+def test_procurement_key_keeps_the_exact_value():
+    assert procurement_key(notice(estimated_value=120049)) != procurement_key(notice(estimated_value=120000))
+    assert procurement_key(notice(estimated_value=120000)) == procurement_key(notice(estimated_value=120000.0))
 
 
 def test_content_hash_is_attached_to_every_kept_notice():

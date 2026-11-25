@@ -33,23 +33,41 @@ def profile(**overrides):
     return base
 
 
-def test_exact_cpv_match_scores_eight():
-    total, reasons = score(notice(cpv_codes=["72212000"]), profile(cpv_codes=["72212000"]))
-    assert total == 8
+def test_exact_cpv_match_scores_eight_with_a_keyword():
+    total, reasons = score(
+        notice(cpv_codes=["72212000"], title="software platform"),
+        profile(cpv_codes=["72212000"], keywords=["software"]),
+    )
+    assert total == 12  # 8 CPV + 4 title
     assert reasons[0].startswith("CPV")
+    assert "+8" in reasons[0]
 
 
-def test_prefix_cpv_match_scores_two():
-    total, _ = score(notice(cpv_codes=["72212000"]), profile(cpv_codes=["72"]))
-    assert total == 2
+def test_prefix_cpv_match_scores_two_with_a_keyword():
+    total, reasons = score(
+        notice(cpv_codes=["72212000"], title="software platform"),
+        profile(cpv_codes=["72"], keywords=["software"]),
+    )
+    assert total == 6  # 2 CPV + 4 title
+    assert "+2" in reasons[0]
+
+
+def test_cpv_alone_never_scores():
+    # CPV families are too broad: 79300000 covers advertising and events too.
+    total, reasons = score(
+        notice(cpv_codes=["79300000"], title="advertising services"),
+        profile(cpv_codes=["79300000"], keywords=["software"]),
+    )
+    assert total == 0
+    assert any("not scored" in reason for reason in reasons)
 
 
 def test_only_the_strongest_cpv_match_counts():
     total, reasons = score(
-        notice(cpv_codes=["72212000", "48800000"]),
-        profile(cpv_codes=["72", "48800000"]),
+        notice(cpv_codes=["72212000", "48800000"], title="software"),
+        profile(cpv_codes=["72", "48800000"], keywords=["software"]),
     )
-    assert total == 8
+    assert total == 12
     assert sum(1 for reason in reasons if reason.startswith("CPV")) == 1
 
 
@@ -133,7 +151,7 @@ def test_expired_deadline_is_dropped():
             notice(title="software", cpv_codes=["72212000"], deadline="2020-01-01T00:00:00Z"),
             notice(title="software", cpv_codes=["72212000"], deadline="2999-01-01T00:00:00Z"),
         ],
-        profile(cpv_codes=["72212000"], min_relevance_score=1),
+        profile(cpv_codes=["72212000"], keywords=["software"], min_relevance_score=1),
     )
     assert len(kept) == 1
     assert kept[0]["deadline"].startswith("2999")
@@ -142,7 +160,7 @@ def test_expired_deadline_is_dropped():
 def test_unparseable_deadline_is_kept():
     kept = filter_and_score(
         [notice(title="software", cpv_codes=["72212000"], deadline="not-a-date")],
-        profile(cpv_codes=["72212000"], min_relevance_score=1),
+        profile(cpv_codes=["72212000"], keywords=["software"], min_relevance_score=1),
     )
     assert len(kept) == 1
 
@@ -161,6 +179,6 @@ def test_results_are_filtered_by_min_score_and_sorted_descending():
 def test_buyer_country_list_is_joined_for_the_digest():
     kept = filter_and_score(
         [notice(title="software", buyer_country=["PL", "CZ"])],
-        profile(cpv_codes=["72212000"], countries=["PL"], min_relevance_score=1),
+        profile(cpv_codes=["72212000"], keywords=["software"], countries=["PL"], min_relevance_score=1),
     )
     assert kept[0]["buyer_country"] == "PL,CZ"

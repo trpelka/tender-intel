@@ -23,9 +23,13 @@ def procurement_key(n):
     title = normalize_title(n.get("title", ""))
     country = str(n.get("buyer_country", "") or "").upper().strip()
 
+    # Keep the exact amount. Rounding to hundreds made two genuinely different
+    # procurements (120,000 vs 120,040) look like one and silently dropped one.
     value = n.get("estimated_value")
+    if isinstance(value, list):
+        value = value[0] if value else None
     try:
-        value = round(float(value), -2) if value is not None else ""
+        value = f"{float(value):.2f}" if value not in (None, "") else ""
     except (TypeError, ValueError):
         value = ""
 

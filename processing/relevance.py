@@ -200,6 +200,17 @@ def keyword_in_text(keyword, text):
     return keyword in text
 
 
+def any_keyword_hit(keywords, title, description):
+    """True when at least one profile keyword appears in title or description."""
+    for raw in keywords or []:
+        kw = normalize_keyword(raw)
+        if not kw:
+            continue
+        if keyword_in_text(kw, title) or keyword_in_text(kw, description):
+            return True
+    return False
+
+
 def score(notice, profile):
     """
     Explainable relevance scoring.
@@ -246,6 +257,15 @@ def score(notice, profile):
         notice.get("cpv_codes", [])
     )
 
+    # A CPV code is a family, not a product. CPV 79300000 also covers advertising
+    # and events; 72000000 covers more than IT. A code alone must never be enough
+    # to promote a notice into a digest, so it is scored only when a profile
+    # keyword is also present in the title or description.
+    title = normalize_keyword(notice.get("title", ""))
+    description = normalize_keyword(notice.get("description", ""))
+    profile_keywords = profile.get("keywords", [])
+    keyword_ok = any_keyword_hit(profile_keywords, title, description)
+
     best_cpv = 0
     best_cpv_code = None
     best_profile_code = None
@@ -276,7 +296,7 @@ def score(notice, profile):
                 best_cpv_code = nc
                 best_profile_code = pc
 
-    if best_cpv:
+    if best_cpv and keyword_ok:
         total += best_cpv
 
         reasons.append(
@@ -285,27 +305,19 @@ def score(notice, profile):
             f"{best_cpv_code} "
             f"+{best_cpv}"
         )
+    elif best_cpv:
+        reasons.append(
+            f"CPV {best_profile_code}/{best_cpv_code} not scored: "
+            "no profile keyword in title or description"
+        )
 
     # ========================================================
     # TITLE / DESCRIPTION
     # ========================================================
 
-    title = normalize_keyword(
-        notice.get("title", "")
-    )
-
-    description = normalize_keyword(
-        notice.get("description", "")
-    )
-
     title_hits = []
     high_title_hits = []
     description_hits = []
-
-    profile_keywords = profile.get(
-        "keywords",
-        []
-    )
 
     for raw_kw in profile_keywords:
 
