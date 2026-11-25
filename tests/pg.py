@@ -12,9 +12,10 @@ def pg_uri(server) -> str:
     if host.startswith("/"):
         # Some builds put the socket directory in the host component.
         socket_dir = host
-    elif not host and rest.startswith("/"):
-        # Others put it at the start of the path: /tmp/dir/postgres.
-        socket_dir = rest.rsplit("/", 1)[0]
+    elif not host and rest:
+        # Others put it at the start of the path (with or without a leading
+        # slash after partition): /tmp/dir/postgres.
+        socket_dir = "/" + rest.rsplit("/", 1)[0].lstrip("/")
     else:
         return uri
     return ("postgresql+pg8000://postgres@/postgres?unix_sock="
