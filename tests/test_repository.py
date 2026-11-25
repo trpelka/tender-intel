@@ -67,6 +67,20 @@ def test_pg_uri_rewrites_a_socket_style_uri():
     assert result.startswith("postgresql+pg8000://postgres@/postgres?unix_sock=")
     assert "pgdir" in result and ".s.PGSQL.5432" in result
 
+    class InfoV2:
+        port = 5432
+        socket_path = None
+
+    class ServerV2:
+        def get_uri(self):
+            return "postgresql://postgres:@/postgres?host=/tmp/pgdir"
+
+        def get_postmaster_info(self):
+            return InfoV2()
+
+    rewritten = pg_uri(ServerV2())
+    assert "unix_sock=" in rewritten and "pgdir" in rewritten and ".s.PGSQL.5432" in rewritten
+
 
 def test_postgresql_repository_roundtrip():
     pgserver = pytest.importorskip("pgserver")
