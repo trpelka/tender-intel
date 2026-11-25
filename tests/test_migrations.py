@@ -7,6 +7,7 @@ from alembic.config import Config
 from sqlalchemy import create_engine, inspect
 
 from database.models import make_engine
+from pg import pg_uri
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -33,7 +34,7 @@ def test_upgrade_head_on_postgresql():
     pgserver = pytest.importorskip("pgserver")
     import tempfile
     server = pgserver.get_server(tempfile.mkdtemp(prefix="tender-pg-"))
-    url = server.get_uri()
+    url = pg_uri(server)
     _upgrade(url)
     engine = make_engine(url)
     tables = set(inspect(engine).get_table_names())
