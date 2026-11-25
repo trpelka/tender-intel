@@ -103,8 +103,8 @@ The table below is the exact behaviour of `processing/relevance.py`; the tests i
 
 | Signal | Points |
 | --- | --- |
-| Exact CPV match | **+8** (only the strongest CPV match counts) |
-| Prefix CPV match (either direction) | **+2** |
+| Exact CPV match | **+8** (only the strongest CPV match counts; requires a keyword hit) |
+| Prefix CPV match (either direction) | **+2** (requires a keyword hit) |
 | First keyword in the title | **+4** |
 | Each further keyword in the title | **+2**, capped at **+8** for title keywords |
 | High-value security keyword in the title | **+6** in total, regardless of how many match |
@@ -115,6 +115,11 @@ The table below is the exact behaviour of `processing/relevance.py`; the tests i
 Impact labels: `HIGH` at **10+**, `MEDIUM` at **5+**, otherwise `LOW`. The
 sample profile sets `min_relevance_score` to `10`, so only `HIGH` tenders reach
 the digest.
+
+A CPV code never scores on its own. CPV families are broad (79300000 also covers
+advertising and events), so at least one profile keyword must appear in the title
+or description before CPV points are awarded. A CPV-only match is recorded in the
+reasons as `not scored` instead of silently inflating the digest.
 
 Two details that are easy to misread:
 
@@ -163,7 +168,7 @@ database/         SQLite schema and queries
 reports/          HTML digest generation and email delivery
 profiles/         example client profile
 scripts/          run_pipeline.py, add_client.py
-tests/            pytest suite for scoring, deduplication and digest rendering
+tests/            pytest suite for scoring, dedup, DB migrations, summaries and digest rendering
 output/           generated digests (created at runtime)
 requirements.txt
 .env.example
@@ -175,7 +180,10 @@ setup.sh          optional bootstrap for an empty sandbox
 ## Limitations
 
 - The BZP RSS feed does not expose CPV codes, so Polish below-threshold notices are matched mainly by keywords.
-- Gemini summaries are rate-limited (a delay between requests) and capped per run.
+- Gemini summaries are rate-limited (retried with backoff) and capped per run. A
+  failed or malformed answer is recorded as `summary_status = unavailable` /
+  `malformed` with empty summaries — the tender title is never presented as if a
+  model had written it. The digest falls back to the source description.
 - Email delivery requires valid SMTP credentials.
 - TED and BZP are external services: schema or feed changes can break collection until the adapters are updated.
 - The digest is decision support, not legal advice. Always open the source notice before acting.
