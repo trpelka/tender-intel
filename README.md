@@ -25,6 +25,22 @@ TED / Polish BZP
 - Stores notices, clients and intelligence in SQLite
 - Generates a browser-readable HTML digest and optionally emails it via SMTP
 
+## Architecture
+
+```text
+collectors/ → processing/ → pipeline.py → database/repository.py → reports/
+                                  ↑              ↑
+                              api/main.py    Alembic migrations
+```
+
+`pipeline.py` is the callable core; `scripts/run_pipeline.py` and `api/main.py`
+are two front-ends over the same function. All writes go through `Repository`,
+which commits once per run or rolls back completely.
+
+Schema changes are Alembic migrations in `migrations/versions`. Both entry points
+call `upgrade()` at startup; never create tables by hand. `DATABASE_URL` accepts
+a SQLite file path or a PostgreSQL URL (`postgresql://…`, driven by pg8000).
+
 ## Quick start
 
 ```bash
@@ -130,6 +146,18 @@ Two details that are easy to misread:
   so `SOC` does not match "social" and `SIEM` does not match "Siemens". Longer
   Polish/Czech terms use substring matching on purpose, because inflection
   changes the ending.
+
+## HTTP API and Docker
+
+```bash
+uvicorn api.main:app --reload      # /health, /clients, /runs
+docker compose up --build          # API on :8000, SQLite in ./data
+```
+
+`POST /runs` takes `{"profile": {...}, "dry_run": true, "no_translate": true}`
+and returns the run counters. Set `TENDER_API_KEY` to require `X-API-Key` on
+`/runs` and `/clients`. For PostgreSQL, set
+`DATABASE_URL=postgresql://user:pass@host/db`; migrations run on startup.
 
 ## Tests
 
