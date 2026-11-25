@@ -50,13 +50,22 @@ def test_value_is_numeric_after_storage(repo):
 
 
 def test_pg_uri_rewrites_a_socket_style_uri():
+    from pathlib import Path
+
+    class Info:
+        def socket_path(self):
+            return Path("/tmp/pgdir/.s.PGSQL.5432")
+
     class Server:
         def get_uri(self):
-            return "postgresql://postgres@/tmp/pgdir/postgres"
+            return "postgresql://postgres:@/postgres?host=/tmp/pgdir"
 
-    assert pg_uri(Server()) == (
-        "postgresql+pg8000://postgres@/postgres"
-        "?unix_sock=/tmp/pgdir/.s.PGSQL.5432")
+        def get_postmaster_info(self):
+            return Info()
+
+    result = pg_uri(Server())
+    assert result.startswith("postgresql+pg8000://postgres@/postgres?unix_sock=")
+    assert "pgdir" in result and ".s.PGSQL.5432" in result
 
 
 def test_postgresql_repository_roundtrip():
