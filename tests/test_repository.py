@@ -49,6 +49,16 @@ def test_value_is_numeric_after_storage(repo):
     assert row["estimated_value"] == 120000.0
 
 
+def test_pg_uri_rewrites_a_socket_style_uri():
+    class Server:
+        def get_uri(self):
+            return "postgresql://postgres@/tmp/pgdir/postgres"
+
+    assert pg_uri(Server()) == (
+        "postgresql+pg8000://postgres@/postgres"
+        "?unix_sock=/tmp/pgdir/.s.PGSQL.5432")
+
+
 def test_postgresql_repository_roundtrip():
     pgserver = pytest.importorskip("pgserver")
     import tempfile
